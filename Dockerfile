@@ -1,5 +1,10 @@
 FROM php:8.2-apache
 
+# ติดตั้งไลบรารีระบบที่จำเป็นก่อน (oniguruma สำหรับ mbstring)
+RUN apt-get update && apt-get install -y \
+    libonig-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # ติดตั้ง extension ที่จำเป็นสำหรับเชื่อมต่อ MySQL และใช้งาน mbstring (ภาษาไทย)
 RUN docker-php-ext-install pdo pdo_mysql mysqli mbstring
 
