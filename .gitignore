@@ -1,0 +1,4 @@
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+config/db_connect.php
+config/mail_config.php
