@@ -2,6 +2,15 @@
 // api/admin/export_pdf.php
 // หมายเหตุ: endpoint นี้เปิดผ่าน <a href="..."> ตรงๆ (ไม่ใช้ fetch) เพื่อให้เบราว์เซอร์ดาวน์โหลดไฟล์ได้เลย
 // จึงไม่ใช้ bootstrap.php (ที่ตั้ง JSON header) แต่ใช้ session_start() ตรงๆ แทน
+// ต้องตั้ง cookie params เดียวกับ bootstrap.php ไม่งั้น session_start() จะ Set-Cookie ทับด้วยค่า default (SameSite=Lax)
+// แล้วทำให้ cookie ใช้ข้ามโดเมนไม่ได้อีกต่อไป
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => true,
+    'httponly' => true,
+    'samesite' => 'None',
+]);
 session_start();
 require_once __DIR__ . '/../../config/db_connect.php';
 require_once __DIR__ . '/../../vendor/autoload.php';

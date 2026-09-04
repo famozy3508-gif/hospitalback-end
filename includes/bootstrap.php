@@ -28,6 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// ตั้งค่า session cookie ให้ส่งข้ามโดเมนได้ (frontend อยู่ Vercel, backend อยู่ Render คนละโดเมนกัน)
+// SameSite=None ต้องคู่กับ Secure=true เสมอ ไม่งั้นเบราว์เซอร์จะไม่ยอมส่ง cookie ข้ามโดเมนให้
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => true,
+    'httponly' => true,
+    'samesite' => 'None',
+]);
+
 session_start();
 
 // helper: อ่าน JSON body ที่ React ส่งมา (fetch ส่งเป็น JSON ไม่ใช่ form-urlencoded แบบเดิม)
