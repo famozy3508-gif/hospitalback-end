@@ -2,6 +2,7 @@
 // api/student/upload_avatar.php  (POST multipart/form-data, field name: avatar)
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../config/db_connect.php';
+require_once __DIR__ . '/../../includes/cloudinary.php';
 require_login('student');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -26,17 +27,6 @@ if ($file['size'] > 2 * 1024 * 1024) {
     json_response(['error' => 'ขนาดไฟล์ต้องไม่เกิน 2MB'], 400);
 }
 
-$ext_map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
-$ext = $ext_map[$mime_type];
-$filename = 'avatar_' . uniqid() . '.' . $ext;
+$url = upload_avatar_to_cloudinary($file);
 
-$upload_dir = __DIR__ . '/../../uploads/avatars/';
-if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0755, true);
-}
-
-if (!move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-    json_response(['error' => 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองใหม่'], 500);
-}
-
-json_response(['success' => true, 'filename' => $filename]);
+json_response(['success' => true, 'url' => $url]);

@@ -1,12 +1,13 @@
 FROM php:8.2-apache
 
-# ติดตั้งไลบรารีระบบที่จำเป็นก่อน (oniguruma สำหรับ mbstring)
+# ติดตั้งไลบรารีระบบที่จำเป็นก่อน (oniguruma สำหรับ mbstring, libcurl สำหรับ curl)
 RUN apt-get update && apt-get install -y \
     libonig-dev \
+    libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ติดตั้ง extension ที่จำเป็นสำหรับเชื่อมต่อ MySQL และใช้งาน mbstring (ภาษาไทย)
-RUN docker-php-ext-install pdo pdo_mysql mysqli mbstring
+# ติดตั้ง extension ที่จำเป็นสำหรับเชื่อมต่อ MySQL, mbstring (ภาษาไทย) และ curl (อัปโหลดรูปไป Cloudinary)
+RUN docker-php-ext-install pdo pdo_mysql mysqli mbstring curl
 
 # เปิดใช้งาน mod_rewrite ของ Apache
 RUN a2enmod rewrite
