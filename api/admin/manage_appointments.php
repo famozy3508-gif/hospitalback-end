@@ -46,8 +46,7 @@ if ($method === 'POST') {
         $formatted_time = date('H:i', strtotime($appointment_datetime)) . ' น.';
         $reason_display = !empty($reason) ? htmlspecialchars($reason) : 'ไม่ได้ระบุ';
 
-        // TODO: เปลี่ยนลิงก์นี้เป็นเว็บวิทยาลัยจริงก่อนส่งอาจารย์ตรวจ! ตอนนี้ใส่ไว้เล่นๆ ชั่วคราว
-        $icon_link = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+        $icon_link = 'https://hospital-frontend-gray-one.vercel.app';
 
         $email_body = "
 <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background-color:#F5F7FA; padding:40px 20px; font-family: Tahoma, Arial, sans-serif;'>

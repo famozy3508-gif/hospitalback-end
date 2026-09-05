@@ -14,8 +14,7 @@ function build_notification_email($title, $message, $is_broadcast = false) {
         ? 'ประกาศฉบับนี้ส่งถึงนักเรียนทุกคนที่มีอีเมลลงทะเบียนไว้ในระบบ'
         : 'คุณได้รับข้อความแจ้งเตือนจากห้องพยาบาล กรุณาอ่านรายละเอียดด้านล่าง';
 
-    // TODO: เปลี่ยนลิงก์นี้เป็นเว็บวิทยาลัยจริงก่อนส่งอาจารย์ตรวจ! ตอนนี้ใส่ไว้เล่นๆ ชั่วคราว
-    $icon_link = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+    $icon_link = 'https://hospital-frontend-gray-one.vercel.app';
 
     return "
 <table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background-color:#F5F7FA; padding:40px 20px; font-family: Tahoma, Arial, sans-serif;'>
