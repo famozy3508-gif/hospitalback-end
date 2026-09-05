@@ -30,7 +30,5 @@ $pdo->prepare("DELETE FROM tb_student_profile WHERE user_id = ?")->execute([$use
 $pdo->prepare("DELETE FROM tb_users WHERE user_id = ?")->execute([$user_id]);
 $pdo->commit();
 
-$_SESSION = [];
-session_destroy();
-
+// ไม่ต้องลบ tb_sessions เอง - มี ON DELETE CASCADE จาก tb_users อยู่แล้ว token ของ user นี้เลยหมดอายุไปพร้อมกัน
 json_response(['success' => true]);

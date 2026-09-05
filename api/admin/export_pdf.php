@@ -1,24 +1,19 @@
 <?php
 // api/admin/export_pdf.php
 // หมายเหตุ: endpoint นี้เปิดผ่าน <a href="..."> ตรงๆ (ไม่ใช้ fetch) เพื่อให้เบราว์เซอร์ดาวน์โหลดไฟล์ได้เลย
-// จึงไม่ใช้ bootstrap.php (ที่ตั้ง JSON header) แต่ใช้ session_start() ตรงๆ แทน
-// ต้องตั้ง cookie params เดียวกับ bootstrap.php ไม่งั้น session_start() จะ Set-Cookie ทับด้วยค่า default (SameSite=Lax)
-// แล้วทำให้ cookie ใช้ข้ามโดเมนไม่ได้อีกต่อไป
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path' => '/',
-    'secure' => true,
-    'httponly' => true,
-    'samesite' => 'None',
-]);
-session_start();
+// จึงไม่ใช้ bootstrap.php (ที่ตั้ง JSON header) แต่ดึงแค่ auth_token.php มาเช็ค token แทน
+// ลิงก์ <a href> แนบ Authorization header เองไม่ได้ จึง fallback รับ token ผ่าน query string ?token=... แทน (ดู auth_token.php)
 require_once __DIR__ . '/../../config/db_connect.php';
+require_once __DIR__ . '/../../includes/auth_token.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'nurse') {
+$session = get_authenticated_session($pdo);
+if (!$session || $session['role'] !== 'nurse') {
     http_response_code(403);
     die('ไม่มีสิทธิ์เข้าถึง กรุณาเข้าสู่ระบบด้วยบัญชีพยาบาล');
 }
+$_SESSION['user_id'] = $session['user_id'];
+$_SESSION['username'] = $session['username'];
 
 if (!isset($_GET['student_id'])) {
     die("กรุณาระบุนักเรียนที่ต้องการส่งออกข้อมูล");

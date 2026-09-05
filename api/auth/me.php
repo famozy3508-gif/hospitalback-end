@@ -1,13 +1,16 @@
 <?php
 // api/auth/me.php  (GET)
 require_once __DIR__ . '/../../includes/bootstrap.php';
+require_once __DIR__ . '/../../config/db_connect.php';
 
-if (isset($_SESSION['user_id'])) {
+$session = get_authenticated_session($pdo);
+
+if ($session) {
     json_response([
         'logged_in' => true,
-        'user_id' => $_SESSION['user_id'],
-        'username' => $_SESSION['username'],
-        'role' => $_SESSION['role'],
+        'user_id' => $session['user_id'],
+        'username' => $session['username'],
+        'role' => $session['role'],
     ]);
 } else {
     json_response(['logged_in' => false]);

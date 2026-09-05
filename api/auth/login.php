@@ -24,10 +24,12 @@ if ($user && password_verify($password, $user['password'])) {
         json_response(['error' => 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อเจ้าหน้าที่'], 403);
     }
 
-    session_regenerate_id(true);
-    $_SESSION['user_id'] = $user['user_id'];
-    $_SESSION['username'] = $user['username'];
-    $_SESSION['role'] = $user['role'];
+    // ออก token แบบสุ่ม (แทน PHP session cookie ที่ใช้ข้ามโดเมนไม่ได้บนมือถือ) เก็บลง tb_sessions
+    // อายุ token 7 วัน - หมดอายุแล้วต้องล็อกอินใหม่
+    $token = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', strtotime('+7 days'));
+    $pdo->prepare("INSERT INTO tb_sessions (token, user_id, role, expires_at) VALUES (?, ?, ?, ?)")
+        ->execute([$token, $user['user_id'], $user['role'], $expires_at]);
 
     $ip = $_SERVER['REMOTE_ADDR'];
     $log = $pdo->prepare("INSERT INTO tb_login_logs (user_id, ip_address, status) VALUES (?, ?, 'success')");
@@ -35,6 +37,7 @@ if ($user && password_verify($password, $user['password'])) {
 
     json_response([
         'success' => true,
+        'token' => $token,
         'user_id' => $user['user_id'],
         'username' => $user['username'],
         'role' => $user['role'],

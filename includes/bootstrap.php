@@ -1,6 +1,8 @@
 <?php
 // includes/bootstrap.php
-// รวมไว้บนสุดของทุกไฟล์ API: ตั้งค่า CORS, เปิด session, และกำหนด header เป็น JSON เสมอ
+// รวมไว้บนสุดของทุกไฟล์ API: ตั้งค่า CORS, และกำหนด header เป็น JSON เสมอ
+
+require_once __DIR__ . '/auth_token.php';
 
 // ===== รายชื่อโดเมนที่อนุญาตให้เรียก API นี้ได้ =====
 // ตอนพัฒนา: มีแค่ localhost เท่านั้น
@@ -19,7 +21,9 @@ if (in_array($origin, $allowed_origins)) {
 }
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+// ต้องอนุญาต Authorization header ด้วย ไม่งั้น browser preflight (OPTIONS) จะบล็อก
+// ก่อนคำขอจริงจะถูกส่งไปถึง เพราะ frontend แนบ "Authorization: Bearer <token>" มาทุกครั้ง
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Content-Type: application/json; charset=utf-8');
 
 // เบราว์เซอร์จะยิง OPTIONS มาก่อนเวลามี custom header/credentials (preflight request) - ตอบรับแล้วจบเลย
@@ -27,18 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-
-// ตั้งค่า session cookie ให้ส่งข้ามโดเมนได้ (frontend อยู่ Vercel, backend อยู่ Render คนละโดเมนกัน)
-// SameSite=None ต้องคู่กับ Secure=true เสมอ ไม่งั้นเบราว์เซอร์จะไม่ยอมส่ง cookie ข้ามโดเมนให้
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path' => '/',
-    'secure' => true,
-    'httponly' => true,
-    'samesite' => 'None',
-]);
-
-session_start();
 
 // helper: อ่าน JSON body ที่ React ส่งมา (fetch ส่งเป็น JSON ไม่ใช่ form-urlencoded แบบเดิม)
 function get_json_body() {
@@ -54,12 +46,22 @@ function json_response($data, $status_code = 200) {
     exit;
 }
 
-// helper: เช็คว่า login อยู่ไหม และ role ตรงที่ต้องการไหม
+// helper: เช็คว่า login อยู่ไหม (ผ่าน token ใน Authorization header) และ role ตรงที่ต้องการไหม
+// ใช้ token-based auth แทน PHP session cookie เพราะ cookie ข้ามโดเมนถูกมือถือบล็อก (ดู includes/auth_token.php)
 function require_login($required_role = null) {
-    if (!isset($_SESSION['user_id'])) {
-        json_response(['error' => 'ยังไม่ได้เข้าสู่ระบบ'], 401);
+    global $pdo;
+
+    $session = get_authenticated_session($pdo);
+    if (!$session) {
+        json_response(['error' => 'ยังไม่ได้เข้าสู่ระบบ หรือเซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'], 401);
     }
-    if ($required_role !== null && $_SESSION['role'] !== $required_role) {
+    if ($required_role !== null && $session['role'] !== $required_role) {
         json_response(['error' => 'ไม่มีสิทธิ์เข้าถึง'], 403);
     }
+
+    // เก็บไว้ใน $_SESSION (แค่ตัวแปรในหน่วยความจำของ request นี้ ไม่ผูกกับ cookie ใดๆ)
+    // เพื่อให้โค้ดเดิมที่อ่าน $_SESSION['user_id']/['role']/['username'] ทำงานต่อได้โดยไม่ต้องแก้ทุกไฟล์
+    $_SESSION['user_id'] = $session['user_id'];
+    $_SESSION['role'] = $session['role'];
+    $_SESSION['username'] = $session['username'];
 }
