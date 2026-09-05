@@ -113,7 +113,15 @@ $fontDirs = $defaultConfig['fontDir'];
 $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
 $fontData = $defaultFontConfig['fontdata'];
 
+// Render ใช้ ephemeral filesystem แบบ read-only บางส่วน โฟลเดอร์ vendor/mpdf/.../tmp เขียนไม่ได้
+// ใช้ sys_get_temp_dir() แทน (เช่น /tmp) ซึ่งเขียนได้เสมอ แล้วสร้างโฟลเดอร์ย่อยไว้ให้ mPDF ใช้เอง
+$mpdfTempDir = sys_get_temp_dir() . '/mpdf';
+if (!is_dir($mpdfTempDir)) {
+    mkdir($mpdfTempDir, 0755, true);
+}
+
 $mpdf = new \Mpdf\Mpdf([
+    'tempDir' => $mpdfTempDir,
     'fontDir' => array_merge($fontDirs, [__DIR__ . '/../../fonts']),
     'fontdata' => $fontData + ['sarabun' => ['R' => 'Sarabun-Regular.ttf', 'B' => 'Sarabun-Bold.ttf']],
     'default_font' => 'sarabun',
