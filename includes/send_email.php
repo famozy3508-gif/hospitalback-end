@@ -1,7 +1,11 @@
 <?php
 // includes/send_email.php
-// ฟังก์ชันกลางสำหรับส่งอีเมลแจ้งเตือน ใช้ PHPMailer ผ่าน Gmail SMTP
+// ฟังก์ชันกลางสำหรับส่งอีเมลแจ้งเตือน
 // วิธีใช้: require_once '../includes/send_email.php'; แล้วเรียก send_notification_email($to, $subject, $body);
+//
+// Render บล็อก outbound SMTP port (25/465/587) ทำให้ต่อ Gmail SMTP ไม่ติด ("Network is unreachable")
+// จึงส่งผ่าน Brevo HTTP API แทน (เป็น HTTPS พอร์ต 443 ซึ่งไม่ถูกบล็อก) เมื่อตั้งค่า BREVO_API_KEY ไว้
+// ถ้ายังไม่มี BREVO_API_KEY (เช่นตอน dev ในเครื่อง XAMPP) จะ fallback ไปใช้ PHPMailer ผ่าน SMTP แบบเดิม
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -9,9 +13,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\SMTP;
 
-// อ่านค่า SMTP: ตอนพัฒนาในเครื่อง (XAMPP) ใช้ config/mail_config.php ที่ไม่ได้ commit ขึ้น GitHub (ดู .gitignore)
+// อ่านค่าอีเมลผู้ส่ง/SMTP: ตอนพัฒนาในเครื่อง (XAMPP) ใช้ config/mail_config.php ที่ไม่ได้ commit ขึ้น GitHub (ดู .gitignore)
 // ตอนรันบน Render ไฟล์นี้จะไม่มีอยู่เลย (เพราะไม่ได้ push ขึ้นไป) จึง fallback ไปอ่านจาก environment variables แทน
-// ต้องตั้ง SMTP_HOST/SMTP_PORT/SMTP_USERNAME/SMTP_PASSWORD/SMTP_FROM_NAME ใน Render dashboard
+// ต้องตั้ง SMTP_USERNAME/SMTP_FROM_NAME (และ BREVO_API_KEY หรือ SMTP_HOST/PORT/PASSWORD) ใน Render dashboard
 function get_mail_config() {
     $config_file = __DIR__ . '/../config/mail_config.php';
     if (file_exists($config_file)) {
@@ -32,9 +36,67 @@ function send_notification_email($to_email, $subject, $body_html) {
     }
 
     $config = get_mail_config();
+    $brevo_api_key = getenv('BREVO_API_KEY');
 
-    if (empty($config['smtp_username']) || empty($config['smtp_password'])) {
-        error_log('ส่งอีเมลไม่สำเร็จ: ยังไม่ได้ตั้งค่า SMTP_USERNAME/SMTP_PASSWORD (environment variables หรือ config/mail_config.php)');
+    if (empty($config['smtp_username'])) {
+        error_log('ส่งอีเมลไม่สำเร็จ: ยังไม่ได้ตั้งค่า SMTP_USERNAME (ใช้เป็นอีเมลผู้ส่ง)');
+        return false;
+    }
+
+    if (!empty($brevo_api_key)) {
+        return send_via_brevo($brevo_api_key, $config, $to_email, $subject, $body_html);
+    }
+
+    return send_via_smtp($config, $to_email, $subject, $body_html);
+}
+
+// ส่งผ่าน Brevo HTTP API (https://api.brevo.com/v3/smtp/email) ด้วย cURL - ใช้ HTTPS พอร์ต 443
+function send_via_brevo($api_key, $config, $to_email, $subject, $body_html) {
+    $payload = [
+        'sender' => [
+            'name' => $config['from_name'],
+            'email' => $config['smtp_username'],
+        ],
+        'to' => [
+            ['email' => $to_email],
+        ],
+        'subject' => $subject,
+        'htmlContent' => $body_html,
+    ];
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'api-key: ' . $api_key,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+    ]);
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
+    curl_close($ch);
+
+    if ($response === false) {
+        error_log('ส่งอีเมลผ่าน Brevo ไม่สำเร็จ: cURL error: ' . $curl_error);
+        return false;
+    }
+
+    if ($http_code < 200 || $http_code >= 300) {
+        error_log("ส่งอีเมลผ่าน Brevo ไม่สำเร็จ (HTTP $http_code): $response");
+        return false;
+    }
+
+    return true;
+}
+
+// ส่งผ่าน PHPMailer + SMTP แบบเดิม (ใช้ตอน dev ในเครื่อง หรือกรณีไม่ได้ตั้ง BREVO_API_KEY)
+function send_via_smtp($config, $to_email, $subject, $body_html) {
+    if (empty($config['smtp_password'])) {
+        error_log('ส่งอีเมลไม่สำเร็จ: ยังไม่ได้ตั้งค่า SMTP_PASSWORD (environment variables หรือ config/mail_config.php)');
         return false;
     }
 
