@@ -2,6 +2,65 @@
 // includes/bootstrap.php
 // รวมไว้บนสุดของทุกไฟล์ API: ตั้งค่า CORS, และกำหนด header เป็น JSON เสมอ
 
+// ===== ตัวดักจับ error กลาง =====
+// ป้องกันไม่ให้ exception/fatal error ที่ endpoint ไหนลืมครอบ try/catch หลุดออกไปเป็น
+// หน้า HTML ของ PHP (ซึ่งอาจมีชื่อไฟล์/query/โครงสร้างตารางฐานข้อมูลปนออกไปด้วย)
+// รายละเอียดจริงถูก error_log ไว้ฝั่งเซิร์ฟเวอร์เท่านั้น ฝั่ง client ได้แค่ข้อความกลางๆ
+//
+// ต้องปิด display_errors ด้วย ไม่งั้น PHP จะพิมพ์ banner "Fatal error: ..." (มี path/บรรทัดจริง)
+// ออกไปทาง output ก่อนที่ shutdown function ของเราจะได้ทำงานเสียอีก แล้วเราจะได้ HTML ปนกับ JSON
+// ที่ต่อท้ายมา ไม่ใช่ JSON ล้วนตามที่ต้องการ ส่วน log_errors ยังเปิดไว้ให้ PHP เขียนลง error log เอง
+// เป็น fallback อีกชั้น ถ้าเรายังพลาดจับ error บางแบบไม่ครบ
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+// กันบัฟเฟอร์ output ที่อาจหลุดออกมาก่อน error เกิด (เช่น whitespace, notice ที่ยังไม่ได้ suppress)
+// ให้เคลียร์ทิ้งได้ก่อนตอบ JSON สะอาดๆ กลับไป
+ob_start();
+
+$GLOBALS['__api_error_responded'] = false;
+
+function handle_uncaught_error($log_message) {
+    global $pdo;
+
+    if ($GLOBALS['__api_error_responded']) {
+        return; // กันตอบซ้ำ ถ้า shutdown function ทำงานต่อหลัง exception handler ตอบไปแล้ว
+    }
+    $GLOBALS['__api_error_responded'] = true;
+
+    // ถ้ามี transaction ค้างอยู่ตอน error เกิด ต้อง rollback ก่อนเสมอ ไม่งั้นจะค้างจนกว่า connection จะปิดเอง
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    error_log($log_message);
+
+    // เคลียร์ output ที่อาจค้างอยู่ในบัฟเฟอร์ทิ้งก่อนเสมอ (เช่น HTML fatal error banner ของ PHP เอง)
+    // เพื่อให้ client เห็นแค่ JSON ที่เราตั้งใจตอบเท่านั้น ไม่มี HTML ปนออกไป
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
+
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['error' => 'เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง'], JSON_UNESCAPED_UNICODE);
+}
+
+set_exception_handler(function (Throwable $e) {
+    handle_uncaught_error(
+        'Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString()
+    );
+});
+
+register_shutdown_function(function () {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        handle_uncaught_error('Fatal error: ' . $error['message'] . ' in ' . $error['file'] . ':' . $error['line']);
+    }
+});
+
 require_once __DIR__ . '/auth_token.php';
 
 // ===== รายชื่อโดเมนที่อนุญาตให้เรียก API นี้ได้ =====
