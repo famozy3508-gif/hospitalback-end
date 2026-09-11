@@ -27,17 +27,27 @@ if ($method === 'POST') {
         $year_ad = $year_be - 543;
         $appointment_datetime = sprintf('%04d-%02d-%02d %02d:%02d:00', $year_ad, $month, $day, $hour, $minute);
 
-        // 1. บันทึกนัดหมายลงฐานข้อมูล
-        $stmt = $pdo->prepare("INSERT INTO tb_appointments (student_id, appointment_datetime, reason, status) VALUES (?, ?, ?, 'pending')");
-        $stmt->execute([$student_id, $appointment_datetime, $reason]);
-        $appointment_id = $pdo->lastInsertId();
+        // 1+2. บันทึกนัดหมาย + สร้างแจ้งเตือนในเว็บ ต้องไปด้วยกันเสมอ (ครอบ transaction กันเกิดนัดหมายที่ไม่มีแจ้งเตือนคู่กัน)
+        try {
+            $pdo->beginTransaction();
 
-        // 2. สร้างแจ้งเตือนในเว็บ
-        $message = "คุณมีนัดหมายพบห้องพยาบาลวันที่ " . date('d/m/Y เวลา H:i', strtotime($appointment_datetime)) . " น. เหตุผล: " . $reason;
-        $stmt2 = $pdo->prepare("INSERT INTO tb_notifications (student_id, message, related_appointment_id) VALUES (?, ?, ?)");
-        $stmt2->execute([$student_id, $message, $appointment_id]);
+            $stmt = $pdo->prepare("INSERT INTO tb_appointments (student_id, appointment_datetime, reason, status) VALUES (?, ?, ?, 'pending')");
+            $stmt->execute([$student_id, $appointment_datetime, $reason]);
+            $appointment_id = $pdo->lastInsertId();
+
+            $message = "คุณมีนัดหมายพบห้องพยาบาลวันที่ " . date('d/m/Y เวลา H:i', strtotime($appointment_datetime)) . " น. เหตุผล: " . $reason;
+            $stmt2 = $pdo->prepare("INSERT INTO tb_notifications (student_id, message, related_appointment_id) VALUES (?, ?, ?)");
+            $stmt2->execute([$student_id, $message, $appointment_id]);
+
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('สร้างนัดหมายไม่สำเร็จ: ' . $e->getMessage());
+            json_response(['error' => 'ไม่สามารถสร้างนัดหมายได้ กรุณาลองใหม่อีกครั้ง'], 500);
+        }
 
         // 3. ส่งอีเมลแจ้งเตือนไปหานักเรียนคนนี้ด้วย พร้อมรายละเอียดนัดหมาย (เทมเพลตแบบทางการ)
+        // อยู่นอก transaction เสมอ เพราะเป็น side effect ภายนอกฐานข้อมูล ถ้าส่งไม่สำเร็จก็ไม่ควรย้อนรอยนัดหมายที่บันทึกไปแล้วออก
         $stmt_email = $pdo->prepare("SELECT email FROM tb_users WHERE user_id = ?");
         $stmt_email->execute([$student_id]);
         $student_email = $stmt_email->fetchColumn();

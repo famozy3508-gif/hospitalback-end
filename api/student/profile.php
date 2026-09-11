@@ -37,23 +37,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(['error' => 'กรุณาเลือกระดับชั้นและสาขาวิชา'], 400);
     }
 
-    if (!empty($avatar)) {
-        $pdo->prepare("UPDATE tb_users SET email = ?, avatar = ? WHERE user_id = ?")->execute([$email, $avatar, $user_id]);
-    } else {
-        $pdo->prepare("UPDATE tb_users SET email = ? WHERE user_id = ?")->execute([$email, $user_id]);
+    try {
+        $pdo->beginTransaction();
+
+        if (!empty($avatar)) {
+            $pdo->prepare("UPDATE tb_users SET email = ?, avatar = ? WHERE user_id = ?")->execute([$email, $avatar, $user_id]);
+        } else {
+            $pdo->prepare("UPDATE tb_users SET email = ? WHERE user_id = ?")->execute([$email, $user_id]);
+        }
+
+        if (!empty($new_password)) {
+            $hashed = password_hash($new_password, PASSWORD_DEFAULT);
+            $pdo->prepare("UPDATE tb_users SET password = ? WHERE user_id = ?")->execute([$hashed, $user_id]);
+        }
+
+        $stmt2 = $pdo->prepare("UPDATE tb_student_profile
+            SET first_name=?, last_name=?, nickname=?, phone=?, blood_type=?, chronic_disease=?, education_level=?, department=?
+            WHERE user_id=?");
+        $stmt2->execute([$first_name, $last_name, $nickname, $phone, $blood_type, $chronic_disease, $education_level, $department, $user_id]);
+
+        $pdo->commit();
+        json_response(['success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว']);
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('บันทึกข้อมูลส่วนตัวไม่สำเร็จ: ' . $e->getMessage());
+        json_response(['error' => 'ไม่สามารถบันทึกข้อมูลได้ กรุณาตรวจสอบข้อมูลแล้วลองใหม่อีกครั้ง'], 500);
     }
-
-    if (!empty($new_password)) {
-        $hashed = password_hash($new_password, PASSWORD_DEFAULT);
-        $pdo->prepare("UPDATE tb_users SET password = ? WHERE user_id = ?")->execute([$hashed, $user_id]);
-    }
-
-    $stmt2 = $pdo->prepare("UPDATE tb_student_profile 
-        SET first_name=?, last_name=?, nickname=?, phone=?, blood_type=?, chronic_disease=?, education_level=?, department=? 
-        WHERE user_id=?");
-    $stmt2->execute([$first_name, $last_name, $nickname, $phone, $blood_type, $chronic_disease, $education_level, $department, $user_id]);
-
-    json_response(['success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว']);
 }
 
 json_response(['error' => 'Method not allowed'], 405);

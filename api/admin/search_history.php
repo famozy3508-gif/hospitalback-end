@@ -11,6 +11,8 @@ if ($method === 'POST') {
     $body = get_json_body();
     $action = $body['action'] ?? '';
 
+    $valid_severities = ['mild', 'moderate', 'severe'];
+
     if ($action === 'add_allergy') {
         $student_id_target = (int)($body['student_id_target'] ?? 0);
         $allergy_name = trim($body['allergy_name'] ?? '');
@@ -20,6 +22,9 @@ if ($method === 'POST') {
         if (empty($allergy_name) || empty($student_id_target)) {
             json_response(['error' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
         }
+        if (!in_array($severity, $valid_severities, true)) {
+            json_response(['error' => 'ระดับความรุนแรงไม่ถูกต้อง ต้องเป็น mild, moderate หรือ severe'], 400);
+        }
 
         $stmt = $pdo->prepare("INSERT INTO tb_allergies (user_id, allergy_name, reaction, severity, updated_by) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$student_id_target, $allergy_name, $reaction, $severity, $_SESSION['user_id']]);
@@ -28,8 +33,16 @@ if ($method === 'POST') {
 
     if ($action === 'edit_allergy') {
         $allergy_id = (int)($body['allergy_id'] ?? 0);
+        $allergy_name = trim($body['allergy_name'] ?? '');
+        $reaction = trim($body['reaction'] ?? '');
+        $severity = $body['severity'] ?? 'mild';
+
+        if (!in_array($severity, $valid_severities, true)) {
+            json_response(['error' => 'ระดับความรุนแรงไม่ถูกต้อง ต้องเป็น mild, moderate หรือ severe'], 400);
+        }
+
         $stmt = $pdo->prepare("UPDATE tb_allergies SET allergy_name=?, reaction=?, severity=?, updated_by=? WHERE allergy_id=?");
-        $stmt->execute([trim($body['allergy_name'] ?? ''), trim($body['reaction'] ?? ''), $body['severity'] ?? 'mild', $_SESSION['user_id'], $allergy_id]);
+        $stmt->execute([$allergy_name, $reaction, $severity, $_SESSION['user_id'], $allergy_id]);
         json_response(['success' => true, 'message' => 'แก้ไขประวัติแพ้ยาเรียบร้อยแล้ว']);
     }
 

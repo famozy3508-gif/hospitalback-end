@@ -46,26 +46,33 @@ if ($method === 'POST') {
         }
 
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        $pdo->beginTransaction();
 
-        if ($role === 'nurse') {
-            $position = trim($body['position'] ?? '');
-            $avatar = trim($body['avatar'] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, first_name, last_name, position, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$username, $hashed_password, $role, $first_name, $last_name, $position, $avatar ?: null]);
-        } else {
-            $avatar = trim($body['avatar'] ?? '');
-            $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, email, avatar) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$username, $hashed_password, $role, $email, $avatar ?: null]);
-            $new_id = $pdo->lastInsertId();
+        try {
+            $pdo->beginTransaction();
 
-            $stmt2 = $pdo->prepare("INSERT INTO tb_student_profile
-                (user_id, student_code, first_name, last_name, nickname, education_level, department) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt2->execute([$new_id, $student_code, $first_name, $last_name, $nickname, $education_level, $department]);
+            if ($role === 'nurse') {
+                $position = trim($body['position'] ?? '');
+                $avatar = trim($body['avatar'] ?? '');
+                $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, first_name, last_name, position, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $hashed_password, $role, $first_name, $last_name, $position, $avatar ?: null]);
+            } else {
+                $avatar = trim($body['avatar'] ?? '');
+                $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, email, avatar) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $hashed_password, $role, $email, $avatar ?: null]);
+                $new_id = $pdo->lastInsertId();
+
+                $stmt2 = $pdo->prepare("INSERT INTO tb_student_profile
+                    (user_id, student_code, first_name, last_name, nickname, education_level, department) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt2->execute([$new_id, $student_code, $first_name, $last_name, $nickname, $education_level, $department]);
+            }
+
+            $pdo->commit();
+            json_response(['success' => true, 'message' => 'เพิ่มบุคลากรเรียบร้อยแล้ว']);
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('เพิ่มสมาชิกไม่สำเร็จ: ' . $e->getMessage());
+            json_response(['error' => 'ไม่สามารถเพิ่มสมาชิกได้ กรุณาตรวจสอบข้อมูลแล้วลองใหม่อีกครั้ง'], 500);
         }
-
-        $pdo->commit();
-        json_response(['success' => true, 'message' => 'เพิ่มบุคลากรเรียบร้อยแล้ว']);
     }
 
     if ($action === 'edit') {

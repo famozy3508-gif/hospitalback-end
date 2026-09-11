@@ -22,6 +22,9 @@ if ($method === 'POST') {
     if (empty($allergy_name)) {
         json_response(['error' => 'กรุณากรอกชื่อยา/สารที่แพ้'], 400);
     }
+    if (!in_array($severity, ['mild', 'moderate', 'severe'], true)) {
+        json_response(['error' => 'ระดับความรุนแรงไม่ถูกต้อง ต้องเป็น mild, moderate หรือ severe'], 400);
+    }
 
     $stmt = $pdo->prepare("INSERT INTO tb_allergies (user_id, allergy_name, reaction, severity, updated_by) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$user_id, $allergy_name, $reaction, $severity, $user_id]);
