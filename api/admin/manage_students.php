@@ -24,6 +24,9 @@ if ($method === 'POST') {
         if (empty($username) || empty($password)) {
             json_response(['error' => 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านให้ครบ'], 400);
         }
+        if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
+            json_response(['error' => 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ . _ - เท่านั้น (3-50 ตัวอักษร)'], 400);
+        }
 
         $stmt = $pdo->prepare("SELECT user_id FROM tb_users WHERE username = ?");
         $stmt->execute([$username]);
@@ -68,6 +71,10 @@ if ($method === 'POST') {
         $last_name = trim($body['last_name'] ?? '');
         $new_password = trim($body['password'] ?? '');
         $avatar = trim($body['avatar'] ?? '');
+
+        if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
+            json_response(['error' => 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ . _ - เท่านั้น (3-50 ตัวอักษร)'], 400);
+        }
 
         $stmt_check = $pdo->prepare("SELECT user_id FROM tb_users WHERE username = ? AND user_id != ?");
         $stmt_check->execute([$username, $edit_id]);

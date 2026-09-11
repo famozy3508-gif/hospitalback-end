@@ -19,6 +19,9 @@ $last_name = trim($body['last_name'] ?? '');
 if (empty($username) || empty($password) || empty($email) || empty($student_code)) {
     json_response(['error' => 'กรุณากรอกข้อมูลให้ครบทุกช่อง'], 400);
 }
+if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
+    json_response(['error' => 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ . _ - เท่านั้น (3-50 ตัวอักษร)'], 400);
+}
 if ($password !== $confirm_password) {
     json_response(['error' => 'รหัสผ่านทั้งสองช่องไม่ตรงกัน'], 400);
 }
