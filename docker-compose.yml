@@ -59,10 +59,10 @@ services:
       BREVO_API_KEY: "${BREVO_API_KEY}"
       SMTP_USERNAME: "${SMTP_USERNAME}"
       SMTP_FROM_NAME: "${SMTP_FROM_NAME}"
-      # --- ถ้าจะทดสอบอัปโหลดรูปในเครื่อง ใส่ค่าตรงนี้ ---
-      # CLOUDINARY_CLOUD_NAME: ""
-      # CLOUDINARY_API_KEY: ""
-      # CLOUDINARY_API_SECRET: ""
+      # --- ค่า Cloudinary (อัปโหลดรูป) อ่านจาก .env ในโฟลเดอร์นี้ (ดู .env.example) ---
+      CLOUDINARY_CLOUD_NAME: "${CLOUDINARY_CLOUD_NAME}"
+      CLOUDINARY_API_KEY: "${CLOUDINARY_API_KEY}"
+      CLOUDINARY_API_SECRET: "${CLOUDINARY_API_SECRET}"
     volumes:
       # แก้ไฟล์ PHP แล้วเห็นผลทันที ไม่ต้อง build ใหม่
       - .:/var/www/html
