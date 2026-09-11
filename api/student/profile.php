@@ -30,6 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($first_name) || empty($last_name) || empty($phone) || empty($email)) {
         json_response(['error' => 'กรุณากรอกข้อมูลให้ครบ'], 400);
     }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_response(['error' => 'รูปแบบอีเมลไม่ถูกต้อง'], 400);
+    }
+    if (empty($education_level) || empty($department)) {
+        json_response(['error' => 'กรุณาเลือกระดับชั้นและสาขาวิชา'], 400);
+    }
 
     if (!empty($avatar)) {
         $pdo->prepare("UPDATE tb_users SET email = ?, avatar = ? WHERE user_id = ?")->execute([$email, $avatar, $user_id]);

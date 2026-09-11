@@ -27,6 +27,17 @@ if ($method === 'POST') {
         if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
             json_response(['error' => 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ . _ - เท่านั้น (3-50 ตัวอักษร)'], 400);
         }
+        $email = trim($body['email'] ?? '');
+        if ($role !== 'nurse' && !empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            json_response(['error' => 'รูปแบบอีเมลไม่ถูกต้อง'], 400);
+        }
+        $student_code = trim($body['student_code'] ?? '');
+        $nickname = trim($body['nickname'] ?? '');
+        $education_level = $body['education_level'] ?? '';
+        $department = $body['department'] ?? '';
+        if ($role !== 'nurse' && (empty($education_level) || empty($department))) {
+            json_response(['error' => 'กรุณาเลือกระดับชั้นและสาขาวิชา'], 400);
+        }
 
         $stmt = $pdo->prepare("SELECT user_id FROM tb_users WHERE username = ?");
         $stmt->execute([$username]);
@@ -43,18 +54,12 @@ if ($method === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, first_name, last_name, position, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$username, $hashed_password, $role, $first_name, $last_name, $position, $avatar ?: null]);
         } else {
-            $email = trim($body['email'] ?? '');
             $avatar = trim($body['avatar'] ?? '');
             $stmt = $pdo->prepare("INSERT INTO tb_users (username, password, role, email, avatar) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$username, $hashed_password, $role, $email, $avatar ?: null]);
             $new_id = $pdo->lastInsertId();
 
-            $student_code = trim($body['student_code'] ?? '');
-            $nickname = trim($body['nickname'] ?? '');
-            $education_level = $body['education_level'] ?? '';
-            $department = $body['department'] ?? '';
-
-            $stmt2 = $pdo->prepare("INSERT INTO tb_student_profile 
+            $stmt2 = $pdo->prepare("INSERT INTO tb_student_profile
                 (user_id, student_code, first_name, last_name, nickname, education_level, department) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt2->execute([$new_id, $student_code, $first_name, $last_name, $nickname, $education_level, $department]);
         }
@@ -75,6 +80,10 @@ if ($method === 'POST') {
         if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
             json_response(['error' => 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ . _ - เท่านั้น (3-50 ตัวอักษร)'], 400);
         }
+        $email = trim($body['email'] ?? '');
+        if ($role !== 'nurse' && !empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            json_response(['error' => 'รูปแบบอีเมลไม่ถูกต้อง'], 400);
+        }
 
         $stmt_check = $pdo->prepare("SELECT user_id FROM tb_users WHERE username = ? AND user_id != ?");
         $stmt_check->execute([$username, $edit_id]);
@@ -92,7 +101,6 @@ if ($method === 'POST') {
                 $stmt1->execute([$username, $role, $first_name, $last_name, $position, $edit_id]);
             }
         } else {
-            $email = trim($body['email'] ?? '');
             if (!empty($avatar)) {
                 $stmt1 = $pdo->prepare("UPDATE tb_users SET username=?, email=?, role=?, avatar=? WHERE user_id=?");
                 $stmt1->execute([$username, $email, $role, $avatar, $edit_id]);
