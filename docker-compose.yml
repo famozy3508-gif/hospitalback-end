@@ -1,0 +1,101 @@
+# docker-compose.yml (backend)
+#
+# ชุดพัฒนาเฉพาะฝั่ง backend รันได้เองจากในโฟลเดอร์นี้ ไม่ต้องพึ่ง repo อื่น
+# วางอยู่ที่ราก repo นี้ (hospitalback-end/docker-compose.yml)
+#
+# ===== เปิดใช้งาน =====
+#   http://localhost:8080   เซิร์ฟเวอร์ PHP (API)
+#   http://localhost:8081   phpMyAdmin
+#
+# หน้าเว็บ (frontend) เป็นคนละ repo แยกกัน ต้องไปรัน
+# `docker compose up -d` ที่โฟลเดอร์ frontend/ ของ repo นั้นเพิ่มอีกชุดหนึ่ง
+# ถึงจะเข้าใช้งานได้ครบทั้งระบบที่ http://localhost:5173
+#
+# ===== ชื่อที่จะเห็นใน Docker Desktop =====
+#
+#   Containers                   Volumes
+#   ├── hospital-backend         └── hospitalback-end_db_data
+#   ├── hospital-db
+#   └── hospital-phpmyadmin
+
+services:
+
+  # ============================================================
+  #  1) ฐานข้อมูล  -  MySQL 8
+  # ============================================================
+  db:
+    image: mysql:8
+    container_name: hospital-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: hospital_db
+    ports:
+      # ใช้ 3307 กันชนกับ MySQL ตัวอื่นในเครื่อง ถ้ามี
+      - "3307:3306"
+    volumes:
+      # เก็บข้อมูลถาวร ไม่หายตอน docker compose down
+      - db_data:/var/lib/mysql
+      # ไฟล์ .sql ในโฟลเดอร์นี้จะถูกนำเข้าอัตโนมัติ ตอนสร้างฐานข้อมูลครั้งแรกเท่านั้น
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  # ============================================================
+  #  2) เซิร์ฟเวอร์  -  PHP 8.2 + Apache
+  # ============================================================
+  backend:
+    build: .
+    container_name: hospital-backend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      # ชี้ไปที่ service ชื่อ db ข้างบน (ไม่ใช่ 127.0.0.1)
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: hospital_db
+      DB_USER: root
+      DB_PASSWORD: ""
+      # --- ค่าอีเมล อ่านจาก .env ในโฟลเดอร์นี้ (ดู .env.example) เพื่อจำลองให้เหมือนโปรดักชันจริง ---
+      BREVO_API_KEY: "${BREVO_API_KEY}"
+      SMTP_USERNAME: "${SMTP_USERNAME}"
+      SMTP_FROM_NAME: "${SMTP_FROM_NAME}"
+      # --- ถ้าจะทดสอบอัปโหลดรูปในเครื่อง ใส่ค่าตรงนี้ ---
+      # CLOUDINARY_CLOUD_NAME: ""
+      # CLOUDINARY_API_KEY: ""
+      # CLOUDINARY_API_SECRET: ""
+    volumes:
+      # แก้ไฟล์ PHP แล้วเห็นผลทันที ไม่ต้อง build ใหม่
+      - .:/var/www/html
+      # บัง config/mail_config.php ด้วยไฟล์ stub เฉพาะภายใน container เท่านั้น
+      # (ไม่แตะไฟล์จริงในเครื่อง เพื่อให้ npm run dev + XAMPP ยังอ่านไฟล์นี้ได้ตามปกติ)
+      # โค้ด get_mail_config() เช็คไฟล์นี้ก่อนเสมอ ถ้ามีอยู่จริงจะไม่ไปอ่าน environment variable ข้างบนเลย
+      # หมายเหตุ: เคยลอง mount /dev/null ทับตรงนี้ แต่ PHP require() บนไฟล์ที่ว่างเปล่าแบบนั้น
+      # โยน Fatal Error "Failed to open stream" ทำให้ backend พังทั้งชุด จึงใช้ไฟล์ stub จริงแทน
+      - ./mail_config.docker-stub.php:/var/www/html/config/mail_config.php
+    depends_on:
+      - db
+
+  # ============================================================
+  #  3) จัดการฐานข้อมูล  -  phpMyAdmin
+  # ============================================================
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: hospital-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ""
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
+
+
+# ============================================================
+#  พื้นที่เก็บข้อมูลถาวร
+# ============================================================
+volumes:
+  # ข้อมูลในฐานข้อมูล MySQL
+  db_data:

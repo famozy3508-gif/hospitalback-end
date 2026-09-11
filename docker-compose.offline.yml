@@ -1,0 +1,86 @@
+# docker-compose.offline.yml (backend)
+#
+# ชุด offline สำหรับส่งมอบ: ทุก service ถูก build เป็นอิมเมจสำเร็จรูป
+# ไม่มีการ mount โค้ดจากเครื่อง ต้องการแค่ไฟล์นี้ + อิมเมจที่โหลดจาก
+# hospital-project.tar (docker load) แล้ว docker compose -f docker-compose.offline.yml up
+# ก็รันได้ทันทีโดยไม่ต้องต่อเน็ตและไม่ต้องมีซอร์สโค้ด
+#
+# ไฟล์นี้อยู่ใน repo backend แต่ยังประกอบร่าง frontend เข้าด้วยกัน (build context
+# ../frontend) เพราะชุด offline ต้องการทุก service ครบในไฟล์เดียว จึงต้อง clone
+# ทั้งสอง repo ไว้เป็นโฟลเดอร์พี่น้องกันก่อน (ดูโครงสร้างด้านล่าง) ถึงจะ build ได้:
+#
+#   hospital-system/
+#   ├── backend/                     <- repo นี้ (มี docker-compose.offline.yml)
+#   └── frontend/                    <- repo hospital-frontend
+#
+# ถ้าไม่อยากพึ่งพา path ข้าม repo แบบนี้ อีกทางคือ build อิมเมจ hospital-frontend:1.0
+# แยกจากใน repo frontend เอง (docker build -t hospital-frontend:1.0 .) แล้วลบ service
+# frontend ในไฟล์นี้ออก เหลือแค่ประกอบ image สำเร็จรูปตอน docker load
+#
+# ===== เปิดใช้งาน =====
+#   http://localhost:5173   หน้าเว็บ
+#   http://localhost:8080   เซิร์ฟเวอร์ PHP
+#   http://localhost:8081   phpMyAdmin
+
+services:
+
+  db:
+    build:
+      context: ./db
+    image: hospital-db:1.0
+    container_name: hospital-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: hospital_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: .
+    image: hospital-backend:1.0
+    container_name: hospital-backend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: hospital_db
+      DB_USER: root
+      DB_PASSWORD: ""
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_API_BASE: http://localhost:8080/api
+    image: hospital-frontend:1.0
+    container_name: hospital-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: hospital-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ""
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
+
+volumes:
+  db_data:
