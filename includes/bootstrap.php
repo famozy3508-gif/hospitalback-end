@@ -105,6 +105,16 @@ function json_response($data, $status_code = 200) {
     exit;
 }
 
+// helper: ตรวจความยาวข้อความก่อน insert/update ลงคอลัมน์ที่จำกัดความยาว (เช่น varchar)
+// ต้องใช้ mb_strlen ไม่ใช่ strlen เพราะ 1 ตัวอักษรไทยกิน 3 ไบต์ใน UTF-8 นับด้วย strlen แล้วจะได้ค่าเกินจริง
+// ถ้าเกินจะตอบ 400 พร้อมบอกจำนวนตัวอักษรที่กรอกได้จริง แล้วจบ request ทันที (เพื่อกัน MySQL ตัดข้อความทิ้งเงียบๆ
+// ตอน insert เมื่อ sql_mode ไม่ได้เปิด STRICT_TRANS_TABLES)
+function validate_max_length($value, $max, $field_label) {
+    if (mb_strlen($value) > $max) {
+        json_response(['error' => "$field_label ยาวเกินไป กรอกได้ไม่เกิน $max ตัวอักษร"], 400);
+    }
+}
+
 // helper: เช็คว่า login อยู่ไหม (ผ่าน token ใน Authorization header) และ role ตรงที่ต้องการไหม
 // ใช้ token-based auth แทน PHP session cookie เพราะ cookie ข้ามโดเมนถูกมือถือบล็อก (ดู includes/auth_token.php)
 function require_login($required_role = null) {

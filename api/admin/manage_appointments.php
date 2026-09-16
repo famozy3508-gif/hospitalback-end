@@ -27,6 +27,13 @@ if ($method === 'POST') {
         $year_ad = $year_be - 543;
         $appointment_datetime = sprintf('%04d-%02d-%02d %02d:%02d:00', $year_ad, $month, $day, $hour, $minute);
 
+        // เหตุผลนัดหมาย (tb_appointments.reason) เอง จำกัดแค่ varchar(255) ก็จริง แต่ข้อความแจ้งเตือน
+        // อัตโนมัติที่สร้างจาก prefix คงที่ + เหตุผลนี้ (tb_notifications.message) ก็จำกัด varchar(255) เหมือนกัน
+        // ต้องเผื่อความยาว prefix ไว้ด้วย ไม่งั้น reason ที่ผ่าน validate 255 เองอาจทำให้ message รวมเกิน 255 แล้วถูกตัดทอนเงียบๆ
+        $notif_prefix = "คุณมีนัดหมายพบห้องพยาบาลวันที่ " . date('d/m/Y เวลา H:i', strtotime($appointment_datetime)) . " น. เหตุผล: ";
+        $max_reason_len = 255 - mb_strlen($notif_prefix);
+        validate_max_length($reason, $max_reason_len, 'เหตุผลนัดหมาย (เผื่อพื้นที่ให้ข้อความแจ้งเตือนอัตโนมัติแล้ว)');
+
         // 1+2. บันทึกนัดหมาย + สร้างแจ้งเตือนในเว็บ ต้องไปด้วยกันเสมอ (ครอบ transaction กันเกิดนัดหมายที่ไม่มีแจ้งเตือนคู่กัน)
         try {
             $pdo->beginTransaction();
@@ -35,7 +42,7 @@ if ($method === 'POST') {
             $stmt->execute([$student_id, $appointment_datetime, $reason]);
             $appointment_id = $pdo->lastInsertId();
 
-            $message = "คุณมีนัดหมายพบห้องพยาบาลวันที่ " . date('d/m/Y เวลา H:i', strtotime($appointment_datetime)) . " น. เหตุผล: " . $reason;
+            $message = $notif_prefix . $reason;
             $stmt2 = $pdo->prepare("INSERT INTO tb_notifications (student_id, message, related_appointment_id) VALUES (?, ?, ?)");
             $stmt2->execute([$student_id, $message, $appointment_id]);
 
@@ -185,6 +192,9 @@ if ($method === 'POST') {
 
         $year_ad = $year_be - 543;
         $appointment_datetime = sprintf('%04d-%02d-%02d %02d:%02d:00', $year_ad, $month, $day, $hour, $minute);
+
+        // การแก้ไขนัดหมายไม่ได้สร้าง/อัปเดตข้อความแจ้งเตือนอัตโนมัติซ้ำ จึงเช็คแค่ขีดจำกัดของคอลัมน์ reason เอง (255)
+        validate_max_length($reason, 255, 'เหตุผลนัดหมาย');
 
         $stmt = $pdo->prepare("UPDATE tb_appointments SET appointment_datetime=?, reason=?, status=? WHERE appointment_id=?");
         $stmt->execute([$appointment_datetime, $reason, $status, $appointment_id]);

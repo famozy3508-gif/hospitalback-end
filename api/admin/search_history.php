@@ -25,6 +25,8 @@ if ($method === 'POST') {
         if (!in_array($severity, $valid_severities, true)) {
             json_response(['error' => 'ระดับความรุนแรงไม่ถูกต้อง ต้องเป็น mild, moderate หรือ severe'], 400);
         }
+        validate_max_length($allergy_name, 100, 'ชื่อยา/สารที่แพ้');
+        validate_max_length($reaction, 255, 'อาการที่เกิดขึ้น');
 
         $stmt = $pdo->prepare("INSERT INTO tb_allergies (user_id, allergy_name, reaction, severity, updated_by) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$student_id_target, $allergy_name, $reaction, $severity, $_SESSION['user_id']]);
@@ -40,6 +42,11 @@ if ($method === 'POST') {
         if (!in_array($severity, $valid_severities, true)) {
             json_response(['error' => 'ระดับความรุนแรงไม่ถูกต้อง ต้องเป็น mild, moderate หรือ severe'], 400);
         }
+        if (empty($allergy_name)) {
+            json_response(['error' => 'กรุณากรอกชื่อยา/สารที่แพ้'], 400);
+        }
+        validate_max_length($allergy_name, 100, 'ชื่อยา/สารที่แพ้');
+        validate_max_length($reaction, 255, 'อาการที่เกิดขึ้น');
 
         $stmt = $pdo->prepare("UPDATE tb_allergies SET allergy_name=?, reaction=?, severity=?, updated_by=? WHERE allergy_id=?");
         $stmt->execute([$allergy_name, $reaction, $severity, $_SESSION['user_id'], $allergy_id]);

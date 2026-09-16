@@ -111,6 +111,7 @@ if ($method === 'POST') {
     if (empty($message)) {
         json_response(['error' => 'กรุณากรอกข้อความแจ้งเตือน'], 400);
     }
+    validate_max_length($message, 255, 'ข้อความแจ้งเตือน');
 
     // ===== โหมดส่งให้ทุกคน (แบบข่าวสาร/ประกาศ) =====
     if ($broadcast) {

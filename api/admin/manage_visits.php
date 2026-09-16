@@ -21,8 +21,9 @@ if ($method === 'POST') {
         if (empty($student_id) || empty($symptoms)) {
             json_response(['error' => 'กรุณาเลือกนักเรียนและกรอกอาการให้ครบ'], 400);
         }
+        validate_max_length($medicine_given, 255, 'ยาที่ได้รับ');
 
-        $stmt = $pdo->prepare("INSERT INTO tb_visits (student_id, symptoms, diagnosis, treatment, medicine_given, notes) 
+        $stmt = $pdo->prepare("INSERT INTO tb_visits (student_id, symptoms, diagnosis, treatment, medicine_given, notes)
             VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$student_id, $symptoms, $diagnosis, $treatment, $medicine_given, $notes]);
         json_response(['success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว']);
@@ -30,10 +31,13 @@ if ($method === 'POST') {
 
     if ($action === 'edit') {
         $visit_id = (int)($body['visit_id'] ?? 0);
+        $medicine_given = trim($body['medicine_given'] ?? '');
+        validate_max_length($medicine_given, 255, 'ยาที่ได้รับ');
+
         $stmt = $pdo->prepare("UPDATE tb_visits SET symptoms=?, diagnosis=?, treatment=?, medicine_given=?, notes=? WHERE visit_id=?");
         $stmt->execute([
             trim($body['symptoms'] ?? ''), trim($body['diagnosis'] ?? ''), trim($body['treatment'] ?? ''),
-            trim($body['medicine_given'] ?? ''), trim($body['notes'] ?? ''), $visit_id
+            $medicine_given, trim($body['notes'] ?? ''), $visit_id
         ]);
         json_response(['success' => true, 'message' => 'แก้ไขข้อมูลเรียบร้อยแล้ว']);
     }
