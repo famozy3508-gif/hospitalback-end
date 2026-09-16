@@ -27,11 +27,13 @@ if ($method === 'POST') {
         $year_ad = $year_be - 543;
         $appointment_datetime = sprintf('%04d-%02d-%02d %02d:%02d:00', $year_ad, $month, $day, $hour, $minute);
 
-        // เหตุผลนัดหมาย (tb_appointments.reason) เอง จำกัดแค่ varchar(255) ก็จริง แต่ข้อความแจ้งเตือน
-        // อัตโนมัติที่สร้างจาก prefix คงที่ + เหตุผลนี้ (tb_notifications.message) ก็จำกัด varchar(255) เหมือนกัน
-        // ต้องเผื่อความยาว prefix ไว้ด้วย ไม่งั้น reason ที่ผ่าน validate 255 เองอาจทำให้ message รวมเกิน 255 แล้วถูกตัดทอนเงียบๆ
+        // เหตุผลนัดหมาย (tb_appointments.reason) เอง จำกัด varchar(500) แต่ข้อความแจ้งเตือนอัตโนมัติที่สร้างจาก
+        // prefix คงที่ + เหตุผลนี้ (tb_notifications.message) จำกัด varchar(600) ต้องเผื่อความยาว prefix ไว้ด้วย
+        // ไม่งั้น reason ที่ผ่าน validate 500 เองอาจทำให้ message รวมเกิน 600 แล้วถูกตัดทอนเงียบๆ
+        // ใช้ min(คอลัมน์ reason เอง, พื้นที่ที่เหลือใน message หลังหัก prefix) เผื่อในอนาคตมีคนแก้ข้อความ prefix
+        // ให้ยาวขึ้นจนพื้นที่เหลือน้อยกว่าคอลัมน์ reason เอง ลิมิตจะขยับตามอัตโนมัติโดยไม่ต้องแก้เลขตรงนี้
         $notif_prefix = "คุณมีนัดหมายพบห้องพยาบาลวันที่ " . date('d/m/Y เวลา H:i', strtotime($appointment_datetime)) . " น. เหตุผล: ";
-        $max_reason_len = 255 - mb_strlen($notif_prefix);
+        $max_reason_len = min(500, 600 - mb_strlen($notif_prefix));
         validate_max_length($reason, $max_reason_len, 'เหตุผลนัดหมาย (เผื่อพื้นที่ให้ข้อความแจ้งเตือนอัตโนมัติแล้ว)');
 
         // 1+2. บันทึกนัดหมาย + สร้างแจ้งเตือนในเว็บ ต้องไปด้วยกันเสมอ (ครอบ transaction กันเกิดนัดหมายที่ไม่มีแจ้งเตือนคู่กัน)
@@ -194,7 +196,7 @@ if ($method === 'POST') {
         $appointment_datetime = sprintf('%04d-%02d-%02d %02d:%02d:00', $year_ad, $month, $day, $hour, $minute);
 
         // การแก้ไขนัดหมายไม่ได้สร้าง/อัปเดตข้อความแจ้งเตือนอัตโนมัติซ้ำ จึงเช็คแค่ขีดจำกัดของคอลัมน์ reason เอง (255)
-        validate_max_length($reason, 255, 'เหตุผลนัดหมาย');
+        validate_max_length($reason, 500, 'เหตุผลนัดหมาย');
 
         $stmt = $pdo->prepare("UPDATE tb_appointments SET appointment_datetime=?, reason=?, status=? WHERE appointment_id=?");
         $stmt->execute([$appointment_datetime, $reason, $status, $appointment_id]);
