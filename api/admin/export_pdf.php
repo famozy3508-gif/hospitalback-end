@@ -42,14 +42,54 @@ function severity_label($s) {
     return $labels[$s] ?? $s;
 }
 
+// mPDF ตัดขึ้นบรรทัดใหม่ได้เฉพาะที่ "ช่องว่าง" เท่านั้น แต่ภาษาไทยเขียนติดกันไม่มีช่องว่างระหว่างคำ ข้อความยาวๆ
+// ในคอลัมน์แคบ (เช่น อาการ/วินิจฉัย/ชื่อยาที่แพ้) จึงกลายเป็น "คำเดียว" ที่ยาวเกินความกว้างคอลัมน์
+//
+// ลองมาแล้ว 2 วิธีก่อนจะมาลงเอยที่ "เลิกใช้ <table>":
+// 1) แทรก U+200B (zero-width space) ระหว่างตัวอักษร - Sarabun-Regular.ttf ไม่มี glyph ของ U+200B (เช็คด้วย
+//    fontTools: ไม่อยู่ใน cmap) mPDF เลยวาดเป็นกล่องสี่เหลี่ยม (.notdef) แทรกอยู่ทุกตัวอักษร อ่านไม่ได้เลย
+// 2) เปลี่ยนไปแทรก U+00AD (soft hyphen) แทน - Sarabun-Regular.ttf มี glyph จริง (uni00AD) และ mPDF มีกลไก
+//    จัดการ soft hyphen เป็นของตัวเอง (ดู "Break at Soft HYPHEN" ใน Mpdf.php) วิธีนี้ใช้ได้กับข้อความทั่วไป
+//    (เช่นในย่อหน้า <p> ธรรมดา) แต่พอทดสอบด้วยข้อความยาวติดกัน 255 ตัวอักษรไม่มีช่องว่างเลยภายใน <td> ของตาราง
+//    พบว่าฟอนต์ยังถูกบีบเหลือ ~3-4pt เหมือนเดิม แม้จะตั้ง shrink_tables_to_fit=1 และ CSS hyphens:manual ไว้แล้ว
+//    (ลองทั้งใส่ที่ td/th และที่ table เอง ก็ไม่มีผล) สรุปว่าเป็นข้อจำกัดของอัลกอริทึมคำนวณความสูงแถวของตาราง
+//    ใน mPDF เอง (ดูเหมือนจะประเมินความสูงแถวจากสมมติฐานว่าตัดบรรทัดไม่ได้ แล้วบีบฟอนต์ให้พอดีตามนั้น) ไม่ใช่
+//    ปัญหาที่ตัวอักษรที่แทรกเข้าไปอีกต่อไป ยืนยันด้วยการทดสอบแยก: ข้อความชุดเดียวกันเป๊ะ พอเอาออกจาก <table>
+//    ไปไว้ใน <div>/<p> ธรรมดา ฟอนต์กลับปกติทันที (10.5-14pt ไม่บีบเลย) ทั้งที่เป็น mPDF ตัวเดียวกัน
+//
+// เปลี่ยนทั้งประวัติแพ้ยาและประวัติการเข้ารับบริการจากตาราง (<table>) เป็นการ์ดแบบรายการ (<div class="record">)
+// แทน ตารางแบบเดิมจะยังชนบั๊กนี้ได้เสมอถ้ามีข้อความยาวไม่มีช่องว่างพอ ส่วนการ์ดกว้างเต็มหน้าเสมอ ไม่มีคอลัมน์ให้บีบ
+// ยังคงแทรก soft hyphen (U+00AD) ไว้เหมือนเดิมเพื่อให้ขึ้นบรรทัดใหม่ได้แม้ไม่มีช่องว่างเลยทั้งข้อความ
+// "ห้าม" แทรกคั่นกลางระหว่างพยัญชนะกับสระ/วรรณยุกต์ลอย (combining mark) ที่ประกบอยู่ด้านบน/ล่างของมัน
+// (เช่น ไม้เอก-โท-ตรี-จัตวา, สระอิ-อี-อึ-อือ-อุ-อู) ไม่งั้นจะแสดงผลเพี้ยน/ลอยหลุดออกมา
+// ใช้กับฟิลด์ข้อความอิสระที่ผู้ใช้พิมพ์เองเท่านั้น (ไม่ใช้กับวันที่/ตัวเลข/ป้ายกำกับสั้นๆ)
+function pdf_wrap_thai($text) {
+    $combining_marks = "\u{0E31}\u{0E34}\u{0E35}\u{0E36}\u{0E37}\u{0E38}\u{0E39}\u{0E3A}\u{0E47}\u{0E48}\u{0E49}\u{0E4A}\u{0E4B}\u{0E4C}\u{0E4D}\u{0E4E}";
+    $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    $out = '';
+    $n = count($chars);
+    for ($i = 0; $i < $n; $i++) {
+        $out .= $chars[$i];
+        $next_is_combining = $i < $n - 1 && mb_strpos($combining_marks, $chars[$i + 1]) !== false;
+        if ($i < $n - 1 && !$next_is_combining) {
+            $out .= "\xC2\xAD";
+        }
+    }
+    return $out;
+}
+
 $html = '
 <style>
-    body { font-family: "sarabun", sans-serif; font-size: 16px; }
+    body { font-family: "sarabun", sans-serif; font-size: 16px; hyphens: manual; }
     h1 { text-align: center; color: #2c7a7b; font-size: 22px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #999; padding: 6px; text-align: left; font-size: 14px; }
-    th { background: #edf2f7; }
     .info-line { margin: 4px 0; }
+    .record {
+        border: 1px solid #999; border-radius: 4px; padding: 8px 10px; margin-bottom: 8px;
+        font-size: 14px; hyphens: manual;
+    }
+    .record p { margin: 3px 0; }
+    .record .label { font-weight: bold; color: #2c7a7b; }
+    .record .meta { color: #666; }
 </style>
 
 <h1>ระบบห้องพยาบาล - ใบสรุปประวัติการรักษา</h1>
@@ -58,22 +98,20 @@ $html = '
 <p class="info-line"><strong>รหัสนักเรียน:</strong> ' . htmlspecialchars($profile['student_code'] ?? '-') . '</p>
 <p class="info-line"><strong>ระดับชั้น/สาขา:</strong> ' . htmlspecialchars(($profile['education_level'] ?? '-') . ' ' . ($profile['department'] ?? '')) . '</p>
 <p class="info-line"><strong>กรุ๊ปเลือด:</strong> ' . htmlspecialchars($profile['blood_type'] ?: '-') . '
-&nbsp;&nbsp;<strong>โรคประจำตัว:</strong> ' . htmlspecialchars($profile['chronic_disease'] ?: 'ไม่มี') . '</p>
+&nbsp;&nbsp;<strong>โรคประจำตัว:</strong> ' . pdf_wrap_thai(htmlspecialchars($profile['chronic_disease'] ?: 'ไม่มี')) . '</p>
 
 <h3>ประวัติแพ้ยา</h3>';
 
 if (count($allergies) === 0) {
     $html .= '<p>ไม่มีข้อมูลการแพ้ยา</p>';
 } else {
-    $html .= '<table><tr><th>ชื่อยา/สาร</th><th>อาการ</th><th>ความรุนแรง</th></tr>';
     foreach ($allergies as $a) {
-        $html .= '<tr>
-            <td>' . htmlspecialchars($a['allergy_name']) . '</td>
-            <td>' . htmlspecialchars($a['reaction']) . '</td>
-            <td>' . severity_label($a['severity']) . '</td>
-        </tr>';
+        $html .= '<div class="record">
+            <p class="meta">ความรุนแรง: ' . severity_label($a['severity']) . '</p>
+            <p><span class="label">ชื่อยา/สาร:</span> ' . pdf_wrap_thai(htmlspecialchars($a['allergy_name'])) . '</p>
+            <p><span class="label">อาการ:</span> ' . pdf_wrap_thai(htmlspecialchars($a['reaction'])) . '</p>
+        </div>';
     }
-    $html .= '</table>';
 }
 
 $html .= '<h3>ประวัติการเข้ารับบริการ</h3>';
@@ -81,16 +119,14 @@ $html .= '<h3>ประวัติการเข้ารับบริกา
 if (count($visits) === 0) {
     $html .= '<p>ยังไม่มีประวัติการรักษา</p>';
 } else {
-    $html .= '<table><tr><th>วันที่</th><th>อาการ</th><th>วินิจฉัย</th><th>ยาที่ได้รับ</th></tr>';
     foreach ($visits as $v) {
-        $html .= '<tr>
-            <td>' . date('d/m/Y H:i', strtotime($v['visit_datetime'])) . '</td>
-            <td>' . htmlspecialchars($v['symptoms']) . '</td>
-            <td>' . htmlspecialchars($v['diagnosis']) . '</td>
-            <td>' . htmlspecialchars($v['medicine_given']) . '</td>
-        </tr>';
+        $html .= '<div class="record">
+            <p class="meta">วันที่: ' . date('d/m/Y H:i', strtotime($v['visit_datetime'])) . ' น.</p>
+            <p><span class="label">อาการ:</span> ' . pdf_wrap_thai(htmlspecialchars($v['symptoms'])) . '</p>
+            <p><span class="label">วินิจฉัย:</span> ' . pdf_wrap_thai(htmlspecialchars($v['diagnosis'])) . '</p>
+            <p><span class="label">ยาที่ได้รับ:</span> ' . pdf_wrap_thai(htmlspecialchars($v['medicine_given'])) . '</p>
+        </div>';
     }
-    $html .= '</table>';
 }
 
 $stmt_nurse = $pdo->prepare("SELECT first_name, last_name FROM tb_users WHERE user_id = ?");
@@ -120,6 +156,11 @@ $mpdf = new \Mpdf\Mpdf([
     'fontDir' => array_merge($fontDirs, [__DIR__ . '/../../fonts']),
     'fontdata' => $fontData + ['sarabun' => ['R' => 'Sarabun-Regular.ttf', 'B' => 'Sarabun-Bold.ttf']],
     'default_font' => 'sarabun',
+    // ปิดการบีบฟอนต์อัตโนมัติของ mPDF (ค่า default คือ 1.4 = ยอมบีบฟอนต์ในตารางลงได้ถึง ~71%
+    // เพื่อให้ตารางกว้างพอดีหน้า) เพราะทำให้ตัวหนังสืออ่านยากเมื่อมีข้อความยาวในคอลัมน์
+    // ใช้ CSS กำหนดความกว้างคอลัมน์ + word-wrap ให้ข้อความขึ้นบรรทัดใหม่แทน ตารางจะสูงขึ้นและ
+    // ขึ้นหน้าใหม่เองตามปกติของ mPDF เมื่อเนื้อหายาวเกินหน้าเดียว
+    'shrink_tables_to_fit' => 1,
 ]);
 
 $mpdf->WriteHTML($html);
