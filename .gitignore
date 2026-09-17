@@ -9,3 +9,4 @@ init-db/
 # ห้ามขึ้น GitHub: มีข้อมูลสุขภาพนักเรียนจริง (PII) อยู่ในนี้ (ใช้กับ docker-compose.offline.yml)
 db/
 hospital-project.tar
+backups/
