@@ -45,6 +45,25 @@ if ($method === 'POST') {
             json_response(['error' => 'ชื่อผู้ใช้นี้ถูกใช้งานแล้ว'], 409);
         }
 
+        // เช็คซ้ำที่ backend อีกชั้นเสมอ แม้ฝั่ง frontend จะเช็คผ่าน check_available.php ไปแล้วตอน onBlur
+        // เพราะอาจมีคนแทรกเพิ่มข้อมูลชื่อ/อีเมล/รหัสนักศึกษาเดียวกันเข้ามาระหว่างที่กรอกฟอร์มอยู่
+        if ($role !== 'nurse') {
+            if (!empty($email)) {
+                $stmt = $pdo->prepare("SELECT user_id FROM tb_users WHERE email = ?");
+                $stmt->execute([$email]);
+                if ($stmt->fetch()) {
+                    json_response(['error' => 'อีเมลนี้ถูกใช้งานแล้ว'], 409);
+                }
+            }
+            if (!empty($student_code)) {
+                $stmt = $pdo->prepare("SELECT profile_id FROM tb_student_profile WHERE student_code = ?");
+                $stmt->execute([$student_code]);
+                if ($stmt->fetch()) {
+                    json_response(['error' => 'รหัสนักศึกษานี้มีอยู่ในระบบแล้ว'], 409);
+                }
+            }
+        }
+
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
         try {
