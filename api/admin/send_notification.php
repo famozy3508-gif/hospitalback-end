@@ -156,6 +156,40 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
+    $body = get_json_body();
+
+    // ===== ลบหลายรายการทีเดียว (ids เป็น array ใน JSON body) - endpoint เดียวกัน ไม่วนยิงทีละรายการจากหน้าเว็บ =====
+    // เช็ค isset+is_array แทน !empty() เพราะ empty([]) เป็น true ใน PHP - ถ้าใช้ !empty() ตรงนี้ ids ที่ส่งมาเป็น
+    // [] (array ว่างเปล่า) จะตกไปเงียบๆ ที่ path ลบทีละรายการด้านล่างแทน (อ่าน $_GET['id'] ที่ไม่มีค่า = 0 แล้วตอบ
+    // success ทั้งที่ไม่ได้ลบอะไรเลย) ต้องเข้าบล็อกนี้เสมอเมื่อ client ตั้งใจส่งมาเป็น array เพื่อให้ error ที่ถูกต้อง
+    if (isset($body['ids']) && is_array($body['ids'])) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $body['ids']), fn($v) => $v > 0)));
+
+        if (empty($ids)) {
+            json_response(['error' => 'ไม่มีรายการที่จะลบ'], 400);
+        }
+        if (count($ids) > 100) {
+            json_response(['error' => 'ลบได้ไม่เกิน 100 รายการต่อครั้ง กรุณาแบ่งลบเป็นหลายรอบ'], 400);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $pdo->prepare("DELETE FROM tb_notifications WHERE notification_id IN ($placeholders)");
+            $stmt->execute($ids);
+            $deleted_count = $stmt->rowCount();
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('ลบแจ้งเตือนหลายรายการไม่สำเร็จ: ' . $e->getMessage());
+            json_response(['error' => 'ไม่สามารถลบแจ้งเตือนได้ กรุณาลองใหม่อีกครั้ง'], 500);
+        }
+
+        // id ที่ส่งมาบางตัวอาจไม่มีอยู่จริงแล้ว (เช่นถูกลบไปก่อนหน้าจากอีกแท็บ) ไม่ถือเป็น error ตอบสำเร็จตามจำนวนที่ลบได้จริงเสมอ
+        json_response(['success' => true, 'message' => "ลบแจ้งเตือนเรียบร้อยแล้ว ($deleted_count รายการ)"]);
+    }
+
+    // ===== ลบทีละรายการ (เดิม) =====
     $delete_id = (int)($_GET['id'] ?? 0);
     $pdo->prepare("DELETE FROM tb_notifications WHERE notification_id = ?")->execute([$delete_id]);
     json_response(['success' => true, 'message' => 'ลบแจ้งเตือนเรียบร้อยแล้ว']);
